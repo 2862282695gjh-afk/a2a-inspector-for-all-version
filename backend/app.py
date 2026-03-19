@@ -129,9 +129,16 @@ def _get_agent_card_dict(card: AgentCard) -> dict[str, Any]:
 
 def _get_transport_from_card(card: AgentCard) -> str:
     """Extract the primary transport protocol string from an AgentCard (v1.0 or v0.3)."""
-    # v1.0: supported_interfaces list
-    if hasattr(card, 'supported_interfaces') and card.supported_interfaces:
-        return card.supported_interfaces[0].transport or 'JSONRPC'
+    # v1.0: supported_interfaces list with protocol_binding (or transport)
+    try:
+        if hasattr(card, 'supported_interfaces') and card.supported_interfaces:
+            iface = card.supported_interfaces[0]
+            # v1.0 uses protocol_binding; some compat layers may use transport
+            binding = getattr(iface, 'protocol_binding', None) or getattr(iface, 'transport', None)
+            if binding:
+                return str(binding)
+    except (IndexError, AttributeError):
+        pass
     # v0.3 legacy fallback
     if hasattr(card, 'preferred_transport') and card.preferred_transport:
         return str(card.preferred_transport)
@@ -418,11 +425,12 @@ async def _send_message_compat(
     v1.0: client.send_message(SendMessageRequest(request=message)) -> AsyncIterator[ClientEvent]
     v0.3: client.send_message(message) -> AsyncIterator[ClientEvent]
     """
+    # v1.0: send_message() requires a SendMessageRequest protobuf wrapper.
+    # The wrapper field is "message" (not "request" — that was pre-alpha naming).
     try:
-        # v1.0: SendMessageRequest wraps the message
-        request = SendMessageRequest(request=message)
+        request = SendMessageRequest(message=message)
         return client.send_message(request)
-    except (TypeError, AttributeError):
+    except (TypeError, AttributeError, ValueError):
         # v0.3 fallback: send_message takes a Message directly
         return client.send_message(message)  # type: ignore[arg-type]
 
