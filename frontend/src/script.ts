@@ -839,7 +839,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chatInput.disabled = false;
         sendBtn.disabled = false;
         chatMessages.innerHTML =
-          '<p class="placeholder-text">Send a message to start a new session.</p>';
+          '<p class="placeholder-text">💬 Send a message to start chatting with the agent.</p>';
         debugContent.innerHTML = '';
         Object.keys(rawLogStore).forEach(key => delete rawLogStore[key]);
         logIdQueue.length = 0;
@@ -946,7 +946,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const placeholder = chatMessages.querySelector('.placeholder-text');
       if (placeholder) {
-        placeholder.textContent = 'Send a message to start a new session.';
+        placeholder.textContent = '💬 Send a message to start chatting with the agent.';
       }
     }
   };
@@ -954,7 +954,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const resetSession = () => {
     contextId = null;
     chatMessages.innerHTML =
-      '<p class="placeholder-text">Send a message to start a new session.</p>';
+      '<p class="placeholder-text">💬 Send a message to start chatting with the agent.</p>';
     updateSessionUI();
   };
 
@@ -1325,8 +1325,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const statusIndicator = document.createElement('span');
     statusIndicator.className = 'validation-status';
+    const isError = sender.includes('error');
     if (sender !== 'user') {
-      if (validationErrors.length > 0) {
+      if (isError) {
+        statusIndicator.classList.add('error');
+        statusIndicator.textContent = '❌';
+        statusIndicator.title = 'Agent returned an error';
+      } else if (validationErrors.length > 0) {
         statusIndicator.classList.add('invalid');
         statusIndicator.textContent = '⚠️';
         statusIndicator.title = validationErrors.join('\n');
