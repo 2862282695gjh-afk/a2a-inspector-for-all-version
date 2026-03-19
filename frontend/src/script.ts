@@ -38,8 +38,28 @@ type FileContent = FileWithBytes | FileWithUri;
  *   - File (raw): { raw: string (base64), mediaType?: string, filename?: string }
  *   - Data part:  { data: object }
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type A2APart = Record<string, any>;
+interface A2APart {
+  // v0.3 TextPart / v1.0 text oneof
+  text?: string;
+  // v1.0 file URI oneof
+  url?: string;
+  // v1.0 raw bytes (base64) oneof
+  raw?: string;
+  // v1.0/v0.3 data oneof
+  data?: Record<string, unknown>;
+  // Common fields
+  mediaType?: string;
+  media_type?: string;
+  mimeType?: string;
+  filename?: string;
+  metadata?: Record<string, unknown>;
+  // v0.3 FilePart nested structure
+  file?: { bytes?: string; uri?: string; mimeType?: string; name?: string };
+  // v0.3 discriminated union field
+  type?: string;
+  // Catch-all for future fields
+  [key: string]: unknown;
+}
 
 /**
  * Task state — supports both v0.3 lowercase and v1.0 SCREAMING_SNAKE_CASE.

@@ -103,6 +103,7 @@ def _to_dict(obj: Any) -> dict[str, Any]:
     """Serialize a protobuf Message or Pydantic model to a dict.
 
     Handles both a2a-sdk v1.0 (protobuf) and legacy v0.3 (Pydantic) objects.
+    Raises TypeError for unsupported types.
     """
     # v1.0 protobuf messages have DESCRIPTOR attribute
     if hasattr(obj, 'DESCRIPTOR'):
@@ -110,7 +111,9 @@ def _to_dict(obj: Any) -> dict[str, Any]:
     # Legacy v0.3 Pydantic models
     if hasattr(obj, 'model_dump'):
         return obj.model_dump(exclude_none=True)
-    return dict(obj)
+    if isinstance(obj, dict):
+        return obj
+    raise TypeError(f"Cannot serialize {type(obj).__name__} to dict")
 
 
 def _get_agent_card_dict(card: AgentCard) -> dict[str, Any]:
@@ -195,7 +198,7 @@ async def _process_a2a_response(
     # --- Unwrap the client_event ---
     # v1.0: (StreamResponse, Task | None)
     # v0.3: (TaskStatusUpdateEvent | TaskArtifactUpdateEvent, Task) | Message
-    event: Any
+    event: object  # Union of TaskStatusUpdateEvent, TaskArtifactUpdateEvent, or Message
 
     if isinstance(client_event, tuple):
         stream_response, task = client_event[0], client_event[1]
@@ -367,14 +370,14 @@ def _make_text_part(text: str) -> Any:
     if Part is not None:
         try:
             return Part(text=text)  # v1.0
-        except Exception:
+        except (TypeError, AttributeError):
             pass
     # v0.3 fallback
     try:
         from a2a.types import TextPart  # type: ignore[import]
         PartCompat = Part  # type: ignore[misc]
         return PartCompat(root=TextPart(text=text))  # type: ignore[call-arg]
-    except Exception:
+    except (TypeError, ImportError, AttributeError):
         return Part(text=text)
 
 
@@ -386,13 +389,13 @@ def _make_file_part(data: str, mime_type: str) -> Any:
         try:
             raw_bytes = base64.b64decode(data)
             return Part(raw=raw_bytes, media_type=mime_type)  # v1.0
-        except Exception:
+        except (TypeError, AttributeError):
             pass
     # v0.3 fallback
     try:
         from a2a.types import FilePart, FileWithBytes  # type: ignore[import]
         return FilePart(file=FileWithBytes(bytes=data, mime_type=mime_type))  # type: ignore[call-arg]
-    except Exception:
+    except (TypeError, ImportError, AttributeError):
         return Part(raw=base64.b64decode(data), media_type=mime_type)  # type: ignore[call-arg]
 
 
@@ -419,7 +422,7 @@ async def _send_message_compat(
         # v1.0: SendMessageRequest wraps the message
         request = SendMessageRequest(request=message)
         return client.send_message(request)
-    except Exception:
+    except (TypeError, AttributeError):
         # v0.3 fallback: send_message takes a Message directly
         return client.send_message(message)  # type: ignore[arg-type]
 

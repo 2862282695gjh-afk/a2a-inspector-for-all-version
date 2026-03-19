@@ -99,7 +99,7 @@ def validate_agent_card(card_data: dict[str, Any]) -> list[str]:
                     )
                 if 'transport' not in iface and 'protocolBinding' not in iface:
                     errors.append(
-                        f"supportedInterfaces[{i}] is missing required field 'transport'."
+                        f"supportedInterfaces[{i}] is missing required field 'protocolBinding' (or legacy 'transport')."
                     )
 
     # --- capabilities ---
