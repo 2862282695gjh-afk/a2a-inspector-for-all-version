@@ -307,6 +307,51 @@ body.dark-mode input:checked + .slider {
     margin-bottom: 20px;
 }
 
+/* Version Selector Styles */
+.version-selector-container {
+    margin-bottom: 12px;
+}
+
+.version-label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+.version-select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+    font-size: 0.85em;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.version-select:hover {
+    background-color: var(--bg-secondary);
+}
+
+.version-select:focus {
+    outline: none;
+    border-color: #1877f2;
+}
+
+body.dark-mode .version-select {
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .version-select:hover {
+    background-color: var(--bg-tertiary);
+}
+
 .http-headers-container,
 .message-metadata-container {
     margin-bottom: 20px;

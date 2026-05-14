@@ -90,7 +90,8 @@ templates = Jinja2Templates(directory='../frontend/public')
 # NOTE: This global dictionary stores state. For a simple inspector tool with
 # transient connections, this is acceptable. For a scalable production service,
 # a more robust state management solution (e.g., Redis) would be required.
-clients: dict[str, tuple[httpx.AsyncClient, Client, AgentCard, str]] = {}
+# Tuple: (httpx_client, a2a_client, agent_card, transport_protocol, protocol_version)
+clients: dict[str, tuple[httpx.AsyncClient, Client, AgentCard, str, str]] = {}
 
 
 # ==============================================================================
@@ -321,14 +322,33 @@ def get_card_resolver(
     return card_resolver
 
 
-def _make_client_config() -> ClientConfig:
-    """Build ClientConfig, handling v1.0 and v0.3 API differences.
+def _make_client_config(version: str) -> ClientConfig:
+    """Build ClientConfig based on explicitly selected protocol version.
 
     v1.0: supported_protocol_bindings param (SCREAMING_SNAKE_CASE enum values)
     v0.3: supported_transports param (lowercase enum values)
+    auto: try v1.0 first, fall back to v0.3
     """
+    if version == 'v0.3':
+        return ClientConfig(
+            supported_transports=[  # type: ignore[call-arg]
+                _TP_JSONRPC,
+                _TP_HTTP_JSON,
+                _TP_GRPC,
+            ],
+            use_client_preference=True,
+        )
+    if version == 'v1.0':
+        return ClientConfig(
+            supported_protocol_bindings=[
+                _TP_JSONRPC,
+                _TP_HTTP_JSON,
+                _TP_GRPC,
+            ],
+            use_client_preference=True,
+        )
+    # auto: try v1.0 first, fall back to v0.3
     try:
-        # v1.0 API
         return ClientConfig(
             supported_protocol_bindings=[
                 _TP_JSONRPC,
@@ -338,7 +358,6 @@ def _make_client_config() -> ClientConfig:
             use_client_preference=True,
         )
     except TypeError:
-        # v0.3 fallback
         return ClientConfig(
             supported_transports=[  # type: ignore[call-arg]
                 _TP_JSONRPC,
@@ -369,37 +388,62 @@ def _make_message(
     return Message(**kwargs)
 
 
-def _make_text_part(text: str) -> Any:
-    """Create a text Part, compatible with v1.0 and v0.3."""
-    # v1.0: Part(text=...) — protobuf oneof
-    # v0.3: TextPart(text=...) wrapped in Part(root=...)
-    if Part is not None:
+def _make_text_part(text: str, version: str) -> Any:
+    """Create a text Part based on protocol version.
+
+    v1.0: Part(text=...) — protobuf oneof
+    v0.3: TextPart(text=...) wrapped in Part(root=...)
+    auto: try v1.0, fall back to v0.3
+    """
+    if version == 'v0.3':
         try:
-            return Part(text=text)  # v1.0
-        except (TypeError, AttributeError):
-            pass
-    # v0.3 fallback
+            from a2a.types import (  # type: ignore[attr-defined] # noqa: PLC0415
+                TextPart,
+            )
+            return Part(root=TextPart(text=text))  # type: ignore[call-arg]
+        except (TypeError, ImportError, AttributeError):
+            return Part(text=text)
+    if version == 'v1.0':
+        return Part(text=text)
+    # auto: try v1.0 first
+    try:
+        return Part(text=text)
+    except (TypeError, AttributeError):
+        pass
     try:
         from a2a.types import (  # type: ignore[attr-defined] # noqa: PLC0415
             TextPart,
         )
-        part_compat = Part
-        return part_compat(root=TextPart(text=text))  # type: ignore[call-arg]
+        return Part(root=TextPart(text=text))  # type: ignore[call-arg]
     except (TypeError, ImportError, AttributeError):
         return Part(text=text)
 
 
-def _make_file_part(data: str, mime_type: str) -> Any:
-    """Create a file (bytes) Part, compatible with v1.0 and v0.3."""
-    # v1.0: Part(raw=bytes, media_type=mime_type)
-    # v0.3: FilePart(file=FileWithBytes(bytes=data, mime_type=mime_type))
-    if Part is not None:
+def _make_file_part(data: str, mime_type: str, version: str) -> Any:
+    """Create a file (bytes) Part based on protocol version.
+
+    v1.0: Part(raw=bytes, media_type=mime_type)
+    v0.3: FilePart(file=FileWithBytes(bytes=data, mime_type=mime_type))
+    auto: try v1.0, fall back to v0.3
+    """
+    if version == 'v0.3':
         try:
-            raw_bytes = base64.b64decode(data)
-            return Part(raw=raw_bytes, media_type=mime_type)  # v1.0
-        except (TypeError, AttributeError):
-            pass
-    # v0.3 fallback
+            from a2a.types import (  # type: ignore[attr-defined] # noqa: PLC0415
+                FilePart,
+                FileWithBytes,
+            )
+            return FilePart(file=FileWithBytes(bytes=data, mime_type=mime_type))  # type: ignore[call-arg]
+        except (TypeError, ImportError, AttributeError):
+            return Part(raw=base64.b64decode(data), media_type=mime_type)  # type: ignore[call-arg]
+    if version == 'v1.0':
+        raw_bytes = base64.b64decode(data)
+        return Part(raw=raw_bytes, media_type=mime_type)
+    # auto: try v1.0 first
+    try:
+        raw_bytes = base64.b64decode(data)
+        return Part(raw=raw_bytes, media_type=mime_type)
+    except (TypeError, AttributeError):
+        pass
     try:
         from a2a.types import (  # type: ignore[attr-defined] # noqa: PLC0415
             FilePart,
@@ -410,10 +454,18 @@ def _make_file_part(data: str, mime_type: str) -> Any:
         return Part(raw=base64.b64decode(data), media_type=mime_type)  # type: ignore[call-arg]
 
 
-def _get_role_user() -> Any:
-    """Get the user role constant, compatible with v1.0 and v0.3."""
-    # v1.0: Role.ROLE_USER (int enum)
-    # v0.3: Role.user (string enum)
+def _get_role_user(version: str) -> Any:
+    """Get the user role constant based on protocol version.
+
+    v1.0: Role.ROLE_USER (int enum)
+    v0.3: Role.user (string enum)
+    auto: try v1.0, fall back to v0.3
+    """
+    if version == 'v0.3':
+        return Role.user  # type: ignore[attr-defined]
+    if version == 'v1.0':
+        return Role.ROLE_USER  # type: ignore[attr-defined]
+    # auto
     try:
         return Role.ROLE_USER  # type: ignore[attr-defined]
     except AttributeError:
@@ -423,19 +475,24 @@ def _get_role_user() -> Any:
 async def _send_message_compat(
     client: Client,
     message: Message,
+    version: str,
 ) -> Any:
     """Call client.send_message with v1.0 or v0.3 API.
 
-    v1.0: client.send_message(SendMessageRequest(request=message)) -> AsyncIterator[ClientEvent]
+    v1.0: client.send_message(SendMessageRequest(message=message)) -> AsyncIterator[ClientEvent]
     v0.3: client.send_message(message) -> AsyncIterator[ClientEvent]
+    auto: try v1.0, fall back to v0.3
     """
-    # v1.0: send_message() requires a SendMessageRequest protobuf wrapper.
-    # The wrapper field is "message" (not "request" — that was pre-alpha naming).
+    if version == 'v0.3':
+        return client.send_message(message)  # type: ignore[arg-type]
+    if version == 'v1.0':
+        request = SendMessageRequest(message=message)
+        return client.send_message(request)
+    # auto: try v1.0 first, fall back to v0.3
     try:
         request = SendMessageRequest(message=message)
         return client.send_message(request)
     except (TypeError, AttributeError, ValueError):
-        # v0.3 fallback: send_message takes a Message directly
         return client.send_message(message)  # type: ignore[arg-type]
 
 
@@ -542,7 +599,7 @@ async def handle_disconnect(sid: str) -> None:
     """Handle the 'disconnect' socket.io event."""
     logger.info(f'Client disconnected: {sid}')
     if sid in clients:
-        httpx_client, _, _, _ = clients.pop(sid)
+        httpx_client, _, _, _, _ = clients.pop(sid)
         await httpx_client.aclose()
         logger.info(f'Cleaned up client for {sid}')
 
@@ -551,7 +608,7 @@ async def handle_disconnect(sid: str) -> None:
 async def handle_initialize_client(sid: str, data: dict[str, Any]) -> None:
     """Handle the 'initialize_client' socket.io event."""
     agent_card_url = data.get('url')
-
+    protocol_version = data.get('protocolVersion', 'auto')
     custom_headers = data.get('customHeaders', {})
 
     if not agent_card_url:
@@ -568,14 +625,14 @@ async def handle_initialize_client(sid: str, data: dict[str, Any]) -> None:
         card_resolver = get_card_resolver(httpx_client, agent_card_url)
         card = await card_resolver.get_agent_card()
 
-        a2a_config = _make_client_config()
+        a2a_config = _make_client_config(protocol_version)
         a2a_config.httpx_client = httpx_client  # type: ignore[attr-defined]
 
         factory = ClientFactory(a2a_config)
         a2a_client = factory.create(card)
         transport_protocol = _get_transport_from_card(card)
 
-        clients[sid] = (httpx_client, a2a_client, card, transport_protocol)
+        clients[sid] = (httpx_client, a2a_client, card, transport_protocol, protocol_version)
 
         input_modes = _get_input_modes(card)
         output_modes = _get_output_modes(card)
@@ -619,19 +676,19 @@ async def handle_send_message(sid: str, json_data: dict[str, Any]) -> None:
         )
         return
 
-    _, a2a_client, _, transport = clients[sid]
+    _, a2a_client, _, transport, protocol_version = clients[sid]
 
     attachments = json_data.get('attachments', [])
 
     parts: list[Any] = []
     if message_text:
-        parts.append(_make_text_part(str(message_text)))
+        parts.append(_make_text_part(str(message_text), protocol_version))
 
     for attachment in attachments:
-        parts.append(_make_file_part(attachment['data'], attachment['mimeType']))
+        parts.append(_make_file_part(attachment['data'], attachment['mimeType'], protocol_version))
 
     message = _make_message(
-        role=_get_role_user(),
+        role=_get_role_user(protocol_version),
         parts=parts,
         message_id=message_id,
         context_id=context_id,
@@ -646,7 +703,7 @@ async def handle_send_message(sid: str, json_data: dict[str, Any]) -> None:
     await _emit_debug_log(sid, message_id, 'request', debug_request)
 
     try:
-        response_stream = await _send_message_compat(a2a_client, message)
+        response_stream = await _send_message_compat(a2a_client, message, protocol_version)
         async for stream_result in response_stream:
             await _process_a2a_response(stream_result, sid, message_id)
 

@@ -166,6 +166,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const agentCardUrlInput = document.getElementById(
     'agent-card-url',
   ) as HTMLInputElement;
+  const protocolVersionSelect = document.getElementById(
+    'protocol-version',
+  ) as HTMLSelectElement;
   const httpHeadersToggle = document.getElementById(
     'http-headers-toggle',
   ) as HTMLElement;
@@ -809,6 +812,7 @@ document.addEventListener('DOMContentLoaded', () => {
       socket.emit('initialize_client', {
         url: agentCardUrl,
         customHeaders: customHeaders,
+        protocolVersion: protocolVersionSelect.value,
       });
 
       if (data.validation_errors.length > 0) {
