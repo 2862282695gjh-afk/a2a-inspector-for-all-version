@@ -298,7 +298,7 @@ body.dark-mode input:checked + .slider {
 .chat-input-container {
     display: flex;
     gap: 10px;
-    margin-bottom: 60px;
+    margin-bottom: 12px;
 }
 
 .connect-btn-container {
