@@ -1,6 +1,7 @@
 import base64
 import logging
 
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 from uuid import uuid4
@@ -80,8 +81,11 @@ sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
 socket_app = socketio.ASGIApp(sio)
 app.mount('/socket.io', socket_app)
 
-app.mount('/static', StaticFiles(directory='../frontend/public'), name='static')
-templates = Jinja2Templates(directory='../frontend/public')
+# Resolve frontend path relative to this app.py file, not CWD
+_FRONTEND_PUBLIC = str(Path(__file__).resolve().parent.parent / 'frontend' / 'public')
+
+app.mount('/static', StaticFiles(directory=_FRONTEND_PUBLIC), name='static')
+templates = Jinja2Templates(directory=_FRONTEND_PUBLIC)
 
 # ==============================================================================
 # State Management
