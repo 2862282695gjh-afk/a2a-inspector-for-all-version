@@ -1,16 +1,23 @@
-# A2A Protocol Inspector
+# A2A Inspector (Multi-Version)
 
-The A2A Inspector is a web-based tool designed to help developers inspect, debug, and validate servers that implement the A2A (Agent2Agent) protocol. It provides a user-friendly interface to interact with an A2A agent, view communication, and ensure specification compliance.
+A fork of [a2a-inspector](https://github.com/a2aproject/a2a-inspector) with **explicit protocol version selector**, supporting both **A2A v0.3 (Legacy)** and **v1.0 (Latest)**.
 
-The application is built with a FastAPI backend and a TypeScript frontend.
+> The official inspector is stuck at v0.3 and PR #145 (v1.0 migration) was never merged. This fork merges that PR and adds a user-facing version selector.
+
+## What's Different
+
+- **Protocol Version Selector** — Choose `v0.3`, `v1.0`, or `Auto Detect` from the UI dropdown before connecting
+- **Backend Version Routing** — The server uses the selected version to call the correct SDK code paths (no more silent try/except fallbacks)
+- **Dual-Format Validation** — Agent cards and messages are validated against the correct schema based on version
 
 ## Features
 
-- **Connect to a local A2A Agent:** Specify the base URL of any agent server to connect (e.g., `http://localhost:5555`).
-- **View Agent Card:** Automatically fetches and displays the agent's card.
-- **Spec Compliance Checks:** Performs basic validation on the agent card to ensure it adheres to the A2A specification.
-- **Live Chat:** A chat interface to send and receive messages with the connected agent.
-- **Debug Console:** A slide-out console shows the raw JSON-RPC 2.0 messages sent and received between the inspector and the agent server.
+- **Connect to any A2A Agent:** Specify the agent card URL to connect (e.g., `http://localhost:5555`)
+- **Protocol Version Selector:** Pick v0.3, v1.0, or let the inspector auto-detect
+- **View Agent Card:** Automatically fetches and displays the agent's card
+- **Spec Compliance Checks:** Validates agent cards and messages against the A2A specification
+- **Live Chat:** Send and receive messages with the connected agent
+- **Debug Console:** Raw JSON-RPC 2.0 messages between inspector and agent
 
 ## Prerequisites
 
@@ -32,8 +39,8 @@ Follow these steps to get the A2A Inspector running on your local machine. The s
 ### 1. Clone the repository
 
 ```sh
-git clone https://github.com/a2aproject/a2a-inspector.git
-cd a2a-inspector
+git clone https://github.com/2862282695gjh-afk/a2a-inspector-for-all-version.git
+cd a2a-inspector-for-all-version
 ```
 
 ### 2. Install Dependencies
